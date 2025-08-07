@@ -17,16 +17,17 @@ export default function Editor() {
     immediatelyRender: false,
   });
 
-  const getSelectionText = () => {
-    if (!editor) return "";
-    const { from, to } = editor.state.selection;
-    return editor.state.doc.textBetween(from, to, "\n");
-  };
-
   const runAI = useCallback(async (mode: Mode) => {
     if (!editor) return;
     setLoading(true);
     setStreamText("");
+
+    // Move getSelectionText here
+    const getSelectionText = () => {
+      if (!editor) return "";
+      const { from, to } = editor.state.selection;
+      return editor.state.doc.textBetween(from, to, "\n");
+    };
 
     const selection = getSelectionText();
     const text = editor.getText() + (pdfText ? `\n\n[PDF Notes]\n${pdfText}` : "");
@@ -57,7 +58,7 @@ export default function Editor() {
 
     setStreamText("");
     setLoading(false);
-  }, [editor, pdfText, getSelectionText]);
+  }, [editor, pdfText]);
 
   // simple slash commands
   useEffect(() => {
