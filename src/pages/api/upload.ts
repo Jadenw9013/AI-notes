@@ -9,7 +9,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     const data = await pdf(buf);
     return res.status(200).json({ text: data.text });
-  } catch (e: any) {
-    return res.status(400).json({ error: e.message });
-  }
+  } catch (e) {
+      return res.status(400).json({ error: e instanceof Error ? e.message : String(e) });
+   }
 }

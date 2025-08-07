@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
@@ -16,23 +16,6 @@ export default function Editor() {
     autofocus: "end",
     immediatelyRender: false,
   });
-
-  // simple slash commands
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (!editor) return;
-      if (e.key === " " && (e.ctrlKey || e.metaKey)) {
-        e.preventDefault();
-        runAI("continue");
-      }
-      if (e.key.toLowerCase() === "e" && (e.ctrlKey || e.metaKey)) {
-        e.preventDefault();
-        runAI("rewrite");
-      }
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [editor]);
 
   const getSelectionText = () => {
     if (!editor) return "";
@@ -74,7 +57,24 @@ export default function Editor() {
 
     setStreamText("");
     setLoading(false);
-  }, [editor, pdfText]);
+  }, [editor, pdfText, getSelectionText]);
+
+  // simple slash commands
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (!editor) return;
+      if (e.key === " " && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        runAI("continue");
+      }
+      if (e.key.toLowerCase() === "e" && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        runAI("rewrite");
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [editor, runAI]);
 
   const onUploadPdf = async (file: File) => {
     const buf = await file.arrayBuffer();
