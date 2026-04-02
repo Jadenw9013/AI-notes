@@ -3,7 +3,14 @@ import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
 
-type Mode = "continue" | "rewrite" | "summarize" | "todos";
+type Mode = "continue" | "rewrite" | "summarize" | "actionItems";
+
+interface EditorProps {
+  noteId: string;
+  noteTitle: string;
+  initialContent: string;
+  onContentChange?: (content: string) => void;
+}
 
 const BoldIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -75,23 +82,56 @@ const UploadIcon = () => (
   </svg>
 );
 
-export default function Editor() {
+export default function Editor({ noteId, noteTitle, initialContent, onContentChange }: EditorProps) {
   const [loading, setLoading] = useState(false);
   const [streamText, setStreamText] = useState("");
   const [pdfText, setPdfText] = useState("");
   const [pdfName, setPdfName] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
 
   const editor = useEditor({
     extensions: [
       StarterKit,
       Placeholder.configure({
-        placeholder: "Start writing, or press / for commands...",
+        placeholder: "Start writing, or press Ctrl+Space for AI...",
       }),
     ],
-    content: "",
+    content: initialContent,
     autofocus: "end",
     immediatelyRender: false,
+    onUpdate({ editor }) {
+      onContentChange?.(editor.getHTML());
+      // Auto-save after user stops typing (2 seconds)
+      if (isSaving) return;
+      const timeout = setTimeout(() => {
+        saveNote(editor.getHTML());
+      }, 2000);
+      return () => clearTimeout(timeout);
+    },
   });
+
+  const saveNote = useCallback(
+    async (content: string) => {
+      if (!noteId || isSaving) return;
+      setIsSaving(true);
+      try {
+        await fetch('/api/notes', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: noteId,
+            title: noteTitle,
+            content,
+          }),
+        });
+      } catch (error) {
+        console.error('Failed to save note:', error);
+      } finally {
+        setIsSaving(false);
+      }
+    },
+    [noteId, noteTitle, isSaving]
+  );
 
   const runAI = useCallback(
     async (mode: Mode) => {
@@ -106,41 +146,42 @@ export default function Editor() {
       };
 
       const selection = getSelectionText();
-      const text =
-        editor.getText() + (pdfText ? `\n\n[PDF Notes]\n${pdfText}` : "");
+      const noteContent = editor.getHTML() + (pdfText ? `\n\n[PDF Notes]\n${pdfText}` : "");
 
-      const res = await fetch("/api/ai/complete", {
+      const res = await fetch("/api/ai/process", {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          mode,
-          text,
-          selection,
-          instruction: mode === "rewrite" ? "clear and concise" : undefined,
+          prompt: selection,
+          noteContent,
+          noteTitle,
+          action: mode,
         }),
       });
 
-      const reader = res.body?.getReader();
-      const decoder = new TextDecoder();
+      const result = await res.json();
 
-      let acc = "";
-      while (reader) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        const chunk = decoder.decode(value);
-        acc += chunk;
-        setStreamText(acc);
+      if (!result.success) {
+        console.error('AI error:', result.error);
+        setLoading(false);
+        return;
       }
 
+      const aiResponse = result.result;
+
       if (mode === "rewrite" && selection) {
-        editor.chain().focus().deleteSelection().insertContent(acc).run();
+        editor.chain().focus().deleteSelection().insertContent(aiResponse).run();
       } else {
-        editor.chain().focus().insertContent(acc).run();
+        editor.chain().focus().insertContent(aiResponse).run();
       }
 
       setStreamText("");
       setLoading(false);
+      
+      // Save after AI operation
+      setTimeout(() => saveNote(editor.getHTML()), 500);
     },
-    [editor, pdfText]
+    [editor, pdfText, noteTitle, noteId, saveNote]
   );
 
   useEffect(() => {
@@ -241,7 +282,7 @@ export default function Editor() {
           </button>
           <button
             className="ai-command-btn"
-            onClick={() => runAI("todos")}
+            onClick={() => runAI("actionItems")}
             disabled={loading}
             title="Extract action items"
           >

@@ -1,6 +1,6 @@
-import { useState } from "react";
-
-const FileIcon = () => (
+import { useState, useEffect } from "react";
+import { useRouter } from "next/router";
+import type { Note, Project } from "@/lib/supabase";
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/>
     <polyline points="14 2 14 8 20 8"/>
@@ -45,17 +45,65 @@ const SparklesIcon = () => (
   </svg>
 );
 
-interface Note {
-  id: string;
-  title: string;
+interface SidebarProps {
+  activeNoteId?: string;
+  onSelectNote: (noteId: string) => void;
+  onCreateNote: () => void;
 }
 
-export function Sidebar() {
-  const [notes] = useState<Note[]>([
-    { id: "1", title: "Untitled Document" },
-    { id: "2", title: "Meeting Notes" },
-    { id: "3", title: "Project Ideas" },
-  ]);
+export function Sidebar({ activeNoteId, onSelectNote, onCreateNote }: SidebarProps) {
+  const router = useRouter();
+  const [notes, setNotes] = useState<Note[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [expandedProject, setExpandedProject] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [notesRes, projectsRes] = await Promise.all([
+          fetch('/api/notes').then(r => r.json()),
+          fetch('/api/projects').then(r => r.json()),
+        ]);
+        setNotes(notesRes.data || []);
+        setProjects(projectsRes.data || []);
+      } catch (error) {
+        console.error('Failed to load notes:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
+
+  const handleCreateNote = async () => {
+    try {
+      const res = await fetch('/api/notes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: 'Untitled Note' }),
+      });
+      const result = await res.json();
+      if (result.success) {
+        setNotes([result.data, ...notes]);
+        onSelectNote(result.data.id);
+      }
+    } catch (error) {
+      console.error('Failed to create note:', error);
+    }
+  };
+
+  const handleDeleteNote = async (noteId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (confirm('Delete this note?')) {
+      try {
+        await fetch(`/api/notes?id=${noteId}`, { method: 'DELETE' });
+        setNotes(notes.filter(n => n.id !== noteId));
+      } catch (error) {
+        console.error('Failed to delete note:', error);
+      }
+    }
+  };
 
   return (
     <aside className="sidebar">
@@ -80,16 +128,38 @@ export function Sidebar() {
 
         <div className="sidebar-section">
           <div className="sidebar-section-title">Notes</div>
-          {notes.map((note) => (
-            <button key={note.id} className="sidebar-item">
-              <FileIcon />
-              <span>{note.title}</span>
-            </button>
-          ))}
+          {loading ? (
+            <div style={{ padding: '12px', fontSize: '12px', color: 'var(--muted)' }}>Loading...</div>
+          ) : notes.length === 0 ? (
+            <div style={{ padding: '12px', fontSize: '12px', color: 'var(--muted)' }}>No notes yet</div>
+          ) : (
+            notes.map((note) => (
+              <button
+                key={note.id}
+                className={`sidebar-item ${activeNoteId === note.id ? 'active' : ''}`}
+                onClick={() => onSelectNote(note.id)}
+              >
+                <FileIcon />
+                <span style={{ flex: 1, textAlign: 'left' }}>{note.title || 'Untitled'}</span>
+                <span
+                  style={{
+                    fontSize: '12px',
+                    color: 'var(--muted)',
+                    cursor: 'pointer',
+                    padding: '4px 8px',
+                  }}
+                  onClick={(e) => handleDeleteNote(note.id, e)}
+                  title="Delete note"
+                >
+                  ×
+                </span>
+              </button>
+            ))
+          )}
         </div>
 
         <div className="sidebar-section">
-          <button className="sidebar-item">
+          <button className="sidebar-item" onClick={handleCreateNote}>
             <PlusIcon />
             <span>New Note</span>
           </button>
