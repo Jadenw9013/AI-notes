@@ -1,107 +1,115 @@
-import { NextRequest, NextResponse } from 'next/server';
-import {
-  fetchProjects,
-  createProject,
-  updateProject,
-  deleteProject,
-  fetchNotesByProject,
-} from '@/lib/supabase';
+import type { NextApiRequest, NextApiResponse } from 'next';
+import { createClient } from '@supabase/supabase-js';
 
-export async function GET(request: NextRequest) {
-  try {
-    const { searchParams } = new URL(request.url);
-    const projectId = searchParams.get('id');
-    const getNotes = searchParams.get('notes');
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
-    if (projectId && getNotes === 'true') {
-      const notes = await fetchNotesByProject(projectId);
-      return NextResponse.json({ success: true, data: notes });
-    }
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse
+) {
+  // Create Supabase client
+  const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-    const projects = await fetchProjects();
-    return NextResponse.json({ success: true, data: projects });
-  } catch (error) {
-    console.error('Error fetching projects:', error);
-    return NextResponse.json(
-      {
-        error: error instanceof Error ? error.message : 'Internal server error',
-      },
-      { status: 500 }
-    );
+  // Get the current user
+  const { data: { user } } = await supabase.auth.getUser();
+  
+  if (!user) {
+    return res.status(401).json({ error: 'Unauthorized' });
   }
-}
 
-export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { name, description } = body;
+    switch (req.method) {
+      case 'GET': {
+        const { id, notes } = req.query;
+        
+        if (id && notes === 'true') {
+          const { data, error } = await supabase
+            .from('notes')
+            .select('*')
+            .eq('project_id', id)
+            .order('updated_at', { ascending: false });
+          
+          if (error) throw error;
+          return res.status(200).json({ success: true, data });
+        }
+        
+        const { data, error } = await supabase
+          .from('projects')
+          .select('*')
+          .order('created_at', { ascending: false });
+        
+        if (error) throw error;
+        return res.status(200).json({ success: true, data });
+      }
 
-    if (!name) {
-      return NextResponse.json(
-        { error: 'Project name is required' },
-        { status: 400 }
-      );
+      case 'POST': {
+        const { name, description } = req.body;
+        
+        if (!name) {
+          return res.status(400).json({ error: 'Project name is required' });
+        }
+        
+        const { data, error } = await supabase
+          .from('projects')
+          .insert([{
+            name,
+            description: description || null,
+            color: '#6366f1',
+            user_id: user.id,
+          }])
+          .select()
+          .single();
+        
+        if (error) throw error;
+        return res.status(201).json({ success: true, data });
+      }
+
+      case 'PUT': {
+        const { id, ...updates } = req.body;
+        
+        if (!id) {
+          return res.status(400).json({ error: 'Missing project ID' });
+        }
+        
+        const { data, error } = await supabase
+          .from('projects')
+          .update({
+            ...updates,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', id)
+          .select()
+          .single();
+        
+        if (error) throw error;
+        return res.status(200).json({ success: true, data });
+      }
+
+      case 'DELETE': {
+        const { id } = req.query;
+        
+        if (!id) {
+          return res.status(400).json({ error: 'Missing project ID' });
+        }
+        
+        const { error } = await supabase
+          .from('projects')
+          .delete()
+          .eq('id', id as string);
+        
+        if (error) throw error;
+        return res.status(200).json({ success: true });
+      }
+
+      default:
+        res.setHeader('Allow', ['GET', 'POST', 'PUT', 'DELETE']);
+        return res.status(405).json({ error: `Method ${req.method} not allowed` });
     }
-
-    const project = await createProject(name, description);
-    return NextResponse.json({ success: true, data: project });
   } catch (error) {
-    console.error('Error creating project:', error);
-    return NextResponse.json(
-      {
-        error: error instanceof Error ? error.message : 'Internal server error',
-      },
-      { status: 500 }
-    );
-  }
-}
-
-export async function PUT(request: NextRequest) {
-  try {
-    const body = await request.json();
-    const { id, ...updates } = body;
-
-    if (!id) {
-      return NextResponse.json(
-        { error: 'Missing project ID' },
-        { status: 400 }
-      );
-    }
-
-    const project = await updateProject(id, updates);
-    return NextResponse.json({ success: true, data: project });
-  } catch (error) {
-    console.error('Error updating project:', error);
-    return NextResponse.json(
-      {
-        error: error instanceof Error ? error.message : 'Internal server error',
-      },
-      { status: 500 }
-    );
-  }
-}
-
-export async function DELETE(request: NextRequest) {
-  try {
-    const { searchParams } = new URL(request.url);
-    const projectId = searchParams.get('id');
-
-    if (!projectId) {
-      return NextResponse.json(
-        { error: 'Missing project ID' },
-        { status: 400 }
-      );
-    }
-
-    await deleteProject(projectId);
-    return NextResponse.json({ success: true });
-  } catch (error) {
-    console.error('Error deleting project:', error);
-    return NextResponse.json(
-      {
-        error: error instanceof Error ? error.message : 'Internal server error',
-      },
-      { status: 500 }
-    );
+    console.error('Projects API error:', error);
+    return res.status(500).json({
+      error: error instanceof Error ? error.message : 'Internal server error',
+    });
   }
 }

@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
-import { useRouter } from "next/router";
-import type { Note, Project } from "@/lib/supabase";
+import type { Note } from "@/lib/supabase";
+
+const FileIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/>
     <polyline points="14 2 14 8 20 8"/>
@@ -52,28 +53,22 @@ interface SidebarProps {
 }
 
 export function Sidebar({ activeNoteId, onSelectNote, onCreateNote }: SidebarProps) {
-  const router = useRouter();
   const [notes, setNotes] = useState<Note[]>([]);
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [expandedProject, setExpandedProject] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchData = async () => {
+    const fetchNotes = async () => {
       try {
-        const [notesRes, projectsRes] = await Promise.all([
-          fetch('/api/notes').then(r => r.json()),
-          fetch('/api/projects').then(r => r.json()),
-        ]);
-        setNotes(notesRes.data || []);
-        setProjects(projectsRes.data || []);
+        const res = await fetch('/api/notes');
+        const result = await res.json();
+        setNotes(result.data || []);
       } catch (error) {
         console.error('Failed to load notes:', error);
       } finally {
         setLoading(false);
       }
     };
-    fetchData();
+    fetchNotes();
   }, []);
 
   const handleCreateNote = async () => {

@@ -1,11 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error('Missing Supabase environment variables');
-}
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
@@ -14,6 +10,7 @@ export interface Project {
   name: string;
   description: string | null;
   color: string;
+  user_id: string;
   created_at: string;
   updated_at: string;
 }
@@ -23,12 +20,44 @@ export interface Note {
   title: string;
   content: string;
   project_id: string | null;
+  user_id: string;
   is_favorite: boolean;
   created_at: string;
   updated_at: string;
 }
 
-// Fetch all projects
+// Auth functions
+export async function signUp(email: string, password: string) {
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: {
+      emailRedirectTo: process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL || 
+        `${typeof window !== 'undefined' ? window.location.origin : ''}/`,
+    },
+  });
+  return { data, error };
+}
+
+export async function signIn(email: string, password: string) {
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email,
+    password,
+  });
+  return { data, error };
+}
+
+export async function signOut() {
+  const { error } = await supabase.auth.signOut();
+  return { error };
+}
+
+export async function getCurrentUser() {
+  const { data: { user }, error } = await supabase.auth.getUser();
+  return { user, error };
+}
+
+// Fetch all projects for current user
 export async function fetchProjects(): Promise<Project[]> {
   const { data, error } = await supabase
     .from('projects')
@@ -39,7 +68,7 @@ export async function fetchProjects(): Promise<Project[]> {
   return data || [];
 }
 
-// Fetch all notes
+// Fetch all notes for current user
 export async function fetchNotes(): Promise<Note[]> {
   const { data, error } = await supabase
     .from('notes')
@@ -86,9 +115,10 @@ export async function fetchNote(noteId: string): Promise<Note | null> {
   return data || null;
 }
 
-// Create a new note
+// Create a new note (user_id automatically set via RLS)
 export async function createNote(
   title: string,
+  userId: string,
   projectId?: string
 ): Promise<Note> {
   const { data, error } = await supabase
@@ -98,6 +128,7 @@ export async function createNote(
         title,
         content: '',
         project_id: projectId || null,
+        user_id: userId,
         is_favorite: false,
       },
     ])
@@ -140,6 +171,7 @@ export async function deleteNote(noteId: string): Promise<void> {
 // Create a new project
 export async function createProject(
   name: string,
+  userId: string,
   description?: string
 ): Promise<Project> {
   const { data, error } = await supabase
@@ -149,6 +181,7 @@ export async function createProject(
         name,
         description: description || null,
         color: '#6366f1',
+        user_id: userId,
       },
     ])
     .select()

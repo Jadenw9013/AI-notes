@@ -1,18 +1,33 @@
 import dynamic from "next/dynamic";
 import Head from "next/head";
+import { useRouter } from "next/router";
 import { Sidebar } from "@/components/Sidebar";
 import { Header } from "@/components/Header";
 import { useState, useEffect } from "react";
+import { useAuth } from "@/context/AuthContext";
 import type { Note } from "@/lib/supabase";
 
 const Editor = dynamic(() => import("../../components/Editor"), { ssr: false });
 
 export default function Home() {
+  const router = useRouter();
+  const { user, loading: authLoading, signOut } = useAuth();
   const [activeNote, setActiveNote] = useState<Note | null>(null);
   const [loading, setLoading] = useState(false);
+  const [notesRefreshKey, setNotesRefreshKey] = useState(0);
 
+  // Redirect to login if not authenticated
   useEffect(() => {
-    const fetchWelcomeNote = async () => {
+    if (!authLoading && !user) {
+      router.push('/login');
+    }
+  }, [authLoading, user, router]);
+
+  // Fetch notes when authenticated
+  useEffect(() => {
+    if (!user) return;
+
+    const fetchInitialNote = async () => {
       try {
         const res = await fetch('/api/notes');
         const result = await res.json();
@@ -23,8 +38,8 @@ export default function Home() {
         console.error('Failed to load notes:', error);
       }
     };
-    fetchWelcomeNote();
-  }, []);
+    fetchInitialNote();
+  }, [user]);
 
   const handleSelectNote = async (noteId: string) => {
     setLoading(true);
@@ -51,11 +66,31 @@ export default function Home() {
       const result = await res.json();
       if (result.data) {
         setActiveNote(result.data);
+        setNotesRefreshKey(prev => prev + 1);
       }
     } catch (error) {
       console.error('Failed to create note:', error);
     }
   };
+
+  const handleSignOut = async () => {
+    await signOut();
+    router.push('/login');
+  };
+
+  // Show loading state while checking auth
+  if (authLoading) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>
+        <p style={{ color: 'var(--muted)' }}>Loading...</p>
+      </div>
+    );
+  }
+
+  // Don't render main app if not authenticated
+  if (!user) {
+    return null;
+  }
 
   return (
     <>
@@ -66,10 +101,15 @@ export default function Home() {
       </Head>
       
       <div className="app-layout">
-        <Sidebar activeNoteId={activeNote?.id} onSelectNote={handleSelectNote} onCreateNote={handleCreateNote} />
+        <Sidebar 
+          key={notesRefreshKey}
+          activeNoteId={activeNote?.id} 
+          onSelectNote={handleSelectNote} 
+          onCreateNote={handleCreateNote} 
+        />
         
         <main className="main-content">
-          <Header />
+          <Header userEmail={user.email} onSignOut={handleSignOut} />
           
           <div className="editor-container">
             {activeNote ? (
@@ -88,8 +128,22 @@ export default function Home() {
                 />
               </>
             ) : (
-              <div style={{ padding: '40px', textAlign: 'center', color: 'var(--muted)' }}>
-                {loading ? 'Loading note...' : 'No notes found. Create a new note to get started.'}
+              <div className="empty-state">
+                <svg className="empty-state-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+                  <polyline points="14,2 14,8 20,8" />
+                </svg>
+                <h2 className="empty-state-title">
+                  {loading ? 'Loading...' : 'No notes yet'}
+                </h2>
+                <p className="empty-state-description">
+                  {loading ? '' : 'Create your first note to get started with AI-powered note taking.'}
+                </p>
+                {!loading && (
+                  <button className="btn btn-primary" onClick={handleCreateNote} style={{ marginTop: '16px' }}>
+                    Create Note
+                  </button>
+                )}
               </div>
             )}
           </div>
