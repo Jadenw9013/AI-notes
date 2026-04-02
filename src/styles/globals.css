@@ -803,3 +803,175 @@ kbd {
 .auth-footer a:hover {
   text-decoration: underline;
 }
+
+/* Search Input in Sidebar */
+.search-input-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: var(--background);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 4px;
+}
+
+.search-input-wrapper svg {
+  width: 16px;
+  height: 16px;
+  color: var(--muted);
+  flex-shrink: 0;
+}
+
+.search-input-wrapper input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  font-size: 13px;
+  color: var(--foreground);
+  outline: none;
+  font-family: inherit;
+}
+
+.search-input-wrapper input::placeholder {
+  color: var(--muted);
+}
+
+.search-clear {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border: none;
+  background: var(--border);
+  border-radius: 50%;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.search-clear:hover {
+  background: var(--muted);
+  color: var(--background);
+}
+
+/* Sidebar item improvements */
+.sidebar-item-title {
+  flex: 1;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-item-delete {
+  opacity: 0;
+  font-size: 16px;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: opacity 0.15s, background 0.15s;
+}
+
+.sidebar-item:hover .sidebar-item-delete {
+  opacity: 1;
+}
+
+.sidebar-item-delete:hover {
+  background: var(--border);
+  color: #dc2626;
+}
+
+.sidebar-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 8px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.loading-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--border);
+  border-top-color: var(--foreground);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.sidebar-empty {
+  padding: 16px 8px;
+  font-size: 13px;
+  color: var(--muted);
+  text-align: center;
+  line-height: 1.5;
+}
+
+.sidebar-footer-text {
+  padding: 8px 12px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.sidebar-footer-count {
+  opacity: 0.7;
+}
+
+/* Header improvements */
+.header-user-email {
+  font-size: 13px;
+  color: var(--muted);
+  margin-right: 8px;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.btn-sm {
+  padding: 4px 10px;
+  font-size: 12px;
+}
+
+.btn-sm svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* Editable title */
+.editor-title {
+  cursor: text;
+  transition: color 0.15s;
+}
+
+.editor-title:hover {
+  color: var(--muted);
+}
+
+.editor-title-input {
+  font-size: 32px;
+  font-weight: 700;
+  color: var(--foreground);
+  margin-bottom: 8px;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  border: none;
+  background: transparent;
+  outline: none;
+  width: 100%;
+  font-family: inherit;
+  padding: 0;
+  border-bottom: 2px solid var(--accent);
+}
+
+.editor-title-input:focus {
+  outline: none;
+}

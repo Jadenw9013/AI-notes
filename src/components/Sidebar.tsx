@@ -22,13 +22,6 @@ const HomeIcon = () => (
   </svg>
 );
 
-const SettingsIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/>
-    <circle cx="12" cy="12" r="3"/>
-  </svg>
-);
-
 const PlusIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M5 12h14"/>
@@ -50,11 +43,14 @@ interface SidebarProps {
   activeNoteId?: string;
   onSelectNote: (noteId: string) => void;
   onCreateNote: () => void;
+  onNoteCreated?: (note: Note) => void;
 }
 
-export function Sidebar({ activeNoteId, onSelectNote, onCreateNote }: SidebarProps) {
+export function Sidebar({ activeNoteId, onSelectNote, onCreateNote, onNoteCreated }: SidebarProps) {
   const [notes, setNotes] = useState<Note[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
 
   useEffect(() => {
     const fetchNotes = async () => {
@@ -82,6 +78,7 @@ export function Sidebar({ activeNoteId, onSelectNote, onCreateNote }: SidebarPro
       if (result.success) {
         setNotes([result.data, ...notes]);
         onSelectNote(result.data.id);
+        onNoteCreated?.(result.data);
       }
     } catch (error) {
       console.error('Failed to create note:', error);
@@ -99,6 +96,13 @@ export function Sidebar({ activeNoteId, onSelectNote, onCreateNote }: SidebarPro
       }
     }
   };
+  
+  const filteredNotes = searchQuery.trim()
+    ? notes.filter(note => 
+        note.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        note.content?.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    : notes;
 
   return (
     <aside className="sidebar">
@@ -111,38 +115,74 @@ export function Sidebar({ activeNoteId, onSelectNote, onCreateNote }: SidebarPro
 
       <nav className="sidebar-nav">
         <div className="sidebar-section">
-          <button className="sidebar-item">
-            <SearchIcon />
-            <span>Search</span>
-          </button>
-          <button className="sidebar-item active">
+          {isSearchOpen ? (
+            <div className="search-input-wrapper">
+              <SearchIcon />
+              <input
+                type="text"
+                placeholder="Search notes..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                autoFocus
+                onBlur={() => {
+                  if (!searchQuery) setIsSearchOpen(false);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') {
+                    setSearchQuery('');
+                    setIsSearchOpen(false);
+                  }
+                }}
+              />
+              {searchQuery && (
+                <button
+                  className="search-clear"
+                  onClick={() => {
+                    setSearchQuery('');
+                    setIsSearchOpen(false);
+                  }}
+                >
+                  ×
+                </button>
+              )}
+            </div>
+          ) : (
+            <button className="sidebar-item" onClick={() => setIsSearchOpen(true)}>
+              <SearchIcon />
+              <span>Search</span>
+              <kbd style={{ marginLeft: 'auto', fontSize: '10px', opacity: 0.6 }}>⌘K</kbd>
+            </button>
+          )}
+          <button className="sidebar-item" onClick={() => onSelectNote(notes[0]?.id || '')}>
             <HomeIcon />
-            <span>Home</span>
+            <span>All Notes</span>
           </button>
         </div>
 
         <div className="sidebar-section">
-          <div className="sidebar-section-title">Notes</div>
+          <div className="sidebar-section-title">
+            {searchQuery ? `Results (${filteredNotes.length})` : `Notes (${notes.length})`}
+          </div>
           {loading ? (
-            <div style={{ padding: '12px', fontSize: '12px', color: 'var(--muted)' }}>Loading...</div>
-          ) : notes.length === 0 ? (
-            <div style={{ padding: '12px', fontSize: '12px', color: 'var(--muted)' }}>No notes yet</div>
+            <div className="sidebar-loading">
+              <div className="loading-spinner" />
+              <span>Loading notes...</span>
+            </div>
+          ) : filteredNotes.length === 0 ? (
+            <div className="sidebar-empty">
+              {searchQuery ? 'No matching notes' : 'No notes yet. Create one to get started!'}
+            </div>
           ) : (
-            notes.map((note) => (
+            filteredNotes.map((note) => (
               <button
                 key={note.id}
                 className={`sidebar-item ${activeNoteId === note.id ? 'active' : ''}`}
                 onClick={() => onSelectNote(note.id)}
               >
                 <FileIcon />
-                <span style={{ flex: 1, textAlign: 'left' }}>{note.title || 'Untitled'}</span>
+                <span className="sidebar-item-title">{note.title || 'Untitled'}</span>
                 <span
-                  style={{
-                    fontSize: '12px',
-                    color: 'var(--muted)',
-                    cursor: 'pointer',
-                    padding: '4px 8px',
-                  }}
+                  className="sidebar-item-delete"
                   onClick={(e) => handleDeleteNote(note.id, e)}
                   title="Delete note"
                 >
@@ -162,10 +202,9 @@ export function Sidebar({ activeNoteId, onSelectNote, onCreateNote }: SidebarPro
       </nav>
 
       <div className="sidebar-footer">
-        <button className="sidebar-item">
-          <SettingsIcon />
-          <span>Settings</span>
-        </button>
+        <div className="sidebar-footer-text">
+          <span className="sidebar-footer-count">{notes.length} notes</span>
+        </div>
       </div>
     </aside>
   );

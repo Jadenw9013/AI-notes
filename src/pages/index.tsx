@@ -15,6 +15,8 @@ export default function Home() {
   const [activeNote, setActiveNote] = useState<Note | null>(null);
   const [loading, setLoading] = useState(false);
   const [notesRefreshKey, setNotesRefreshKey] = useState(0);
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [editedTitle, setEditedTitle] = useState("");
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -78,6 +80,43 @@ export default function Home() {
     router.push('/login');
   };
 
+  const handleTitleEdit = () => {
+    if (activeNote) {
+      setEditedTitle(activeNote.title || 'Untitled');
+      setIsEditingTitle(true);
+    }
+  };
+
+  const handleTitleSave = async () => {
+    if (!activeNote || !editedTitle.trim()) return;
+    
+    try {
+      await fetch('/api/notes', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: activeNote.id,
+          title: editedTitle.trim(),
+        }),
+      });
+      setActiveNote({ ...activeNote, title: editedTitle.trim() });
+      setNotesRefreshKey(prev => prev + 1);
+    } catch (error) {
+      console.error('Failed to update title:', error);
+    } finally {
+      setIsEditingTitle(false);
+    }
+  };
+
+  const handleTitleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleTitleSave();
+    } else if (e.key === 'Escape') {
+      setIsEditingTitle(false);
+    }
+  };
+
   // Show loading state while checking auth
   if (authLoading) {
     return (
@@ -109,16 +148,40 @@ export default function Home() {
         />
         
         <main className="main-content">
-          <Header userEmail={user.email} onSignOut={handleSignOut} />
+          <Header userEmail={user.email} noteTitle={activeNote?.title} onSignOut={handleSignOut} />
           
           <div className="editor-container">
             {activeNote ? (
               <>
-                <h1 className="editor-title">{activeNote.title || 'Untitled'}</h1>
+                {isEditingTitle ? (
+                  <input
+                    type="text"
+                    className="editor-title-input"
+                    value={editedTitle}
+                    onChange={(e) => setEditedTitle(e.target.value)}
+                    onBlur={handleTitleSave}
+                    onKeyDown={handleTitleKeyDown}
+                    autoFocus
+                  />
+                ) : (
+                  <h1 
+                    className="editor-title" 
+                    onClick={handleTitleEdit}
+                    title="Click to edit title"
+                  >
+                    {activeNote.title || 'Untitled'}
+                  </h1>
+                )}
                 <div className="editor-meta">
-                  <span>Last edited {new Date(activeNote.updated_at).toLocaleDateString()}</span>
+                  <span>Last edited {new Date(activeNote.updated_at).toLocaleString(undefined, { 
+                    month: 'short', 
+                    day: 'numeric', 
+                    hour: '2-digit', 
+                    minute: '2-digit' 
+                  })}</span>
                 </div>
                 <Editor 
+                  key={activeNote.id}
                   noteId={activeNote.id}
                   noteTitle={activeNote.title}
                   initialContent={activeNote.content}

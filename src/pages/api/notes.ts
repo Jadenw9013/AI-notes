@@ -10,14 +10,27 @@ export default async function handler(
 ) {
   try {
     // Get auth token from cookies
-    const token = getCookie(req, 'sb-' + supabaseUrl?.split('//')[1]?.split('.')[0] + '-auth-token');
+    const projectRef = supabaseUrl?.split('//')[1]?.split('.')[0] || '';
+    const cookieName = `sb-${projectRef}-auth-token`;
+    const tokenCookie = getCookie(req, cookieName);
+    
+    let accessToken = '';
+    if (tokenCookie) {
+      try {
+        const decoded = decodeURIComponent(tokenCookie);
+        const parsed = JSON.parse(decoded);
+        accessToken = parsed.access_token || '';
+      } catch {
+        // Token parsing failed, will be unauthorized
+      }
+    }
     
     // Create Supabase client with auth token
     const supabase = createClient(supabaseUrl, supabaseAnonKey, {
       global: {
-        headers: {
-          authorization: token ? `Bearer ${JSON.parse(decodeURIComponent(token)).access_token}` : '',
-        },
+        headers: accessToken ? {
+          authorization: `Bearer ${accessToken}`,
+        } : {},
       },
     });
 
@@ -80,9 +93,14 @@ export default async function handler(
     } else if (req.method === 'PUT') {
       const { id, title, content } = req.body;
 
+      // Build update object with only provided fields
+      const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
+      if (title !== undefined) updates.title = title;
+      if (content !== undefined) updates.content = content;
+
       const { data, error } = await supabase
         .from('notes')
-        .update({ title, content, updated_at: new Date().toISOString() })
+        .update(updates)
         .eq('id', id)
         .eq('user_id', user.id)
         .select()
