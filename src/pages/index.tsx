@@ -7,7 +7,7 @@ import { useState, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
 import type { Note } from "@/lib/supabase";
 
-const Editor = dynamic(() => import("../../components/Editor"), { ssr: false });
+const Editor = dynamic(() => import("@/components/Editor"), { ssr: false });
 
 export default function Home() {
   const router = useRouter();
